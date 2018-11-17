@@ -19,6 +19,7 @@ typedef struct {
 enum {
   CODE_NOP,
   CODE_CHAR,
+  CODE_ANY,
   CODE_JUMP,
   CODE_SPLIT,
   CODE_MATCH
@@ -31,6 +32,7 @@ typedef struct {
 
 enum {
   NODE_EPSILON,
+  NODE_ANY,
   NODE_CHAR,
   NODE_REP,
   NODE_OR,
@@ -68,12 +70,20 @@ int matchString(Code *codes, int length, char *s, char **matched, int*matched_le
   int index = 0;
   threads[0] = (Thread){0, 0, malloc(sizeof(char)*10), 0, 10};
 
+  int slen = strlen(s);
+
   int retcode = 0;
   *matched_len = 0;
 
   while (index >= 0) {
     int pc = threads[index].pc;
     int p = threads[index].p;
+
+    if (p >= slen) {
+      free(threads[index].s);
+      index--;
+      continue;
+    }
 
     /* if matched */
     if (pc >= length) {
@@ -95,8 +105,10 @@ int matchString(Code *codes, int length, char *s, char **matched, int*matched_le
       case CODE_NOP:
         threads[index].pc++;
         break;
+
+      case CODE_ANY:
       case CODE_CHAR:
-        if (s[p] == codes[pc].op1) {
+        if (s[p] == codes[pc].op1 || codes[pc].type == CODE_ANY) {
           if (threads[index].len == threads[index].buf) {
             threads[index].s = realloc(threads[index].s, threads[index].buf * 2);
             threads[index].buf *= 2;
@@ -147,6 +159,8 @@ void printCode(Code code) {
     case CODE_NOP:
       printf("NOP\n");
       break;
+    case CODE_ANY:
+      printf("ANY\n");
     case CODE_CHAR:
       printf("CHAR %c\n", code.op1);
       break;
@@ -169,6 +183,9 @@ void printCodes(Code* codes, int length) {
     switch(codes[i].type) {
       case CODE_NOP:
         printf("%d\tNOP", i);
+        break;
+      case CODE_ANY:
+        printf("%d\tANY", i);
         break;
       case CODE_CHAR:
         printf("%d\tCHAR %c", i, codes[i].op1);
@@ -198,6 +215,12 @@ void nodeToCode(Node *node, Code** codes, int* length) {
     case NODE_EPSILON:
       *codes = malloc(sizeof(Code));
       (*codes)[0] = (Code){CODE_NOP, 0, 0};
+      *length = 1;
+      return;
+
+    case NODE_ANY:
+      *codes = malloc(sizeof(Code));
+      (*codes)[0] = (Code){CODE_ANY, 0, 0};
       *length = 1;
       return;
 
@@ -267,6 +290,10 @@ void printNode(Node *node) {
     case NODE_EPSILON:
       return;
 
+    case NODE_ANY:
+      printf(".");
+      return;
+
     case NODE_CHAR:
       printf("%c", node->c);
       return;
@@ -297,6 +324,12 @@ void printNode(Node *node) {
 Node* epsilonNode() {
   Node *node = malloc(sizeof(Node));
   node->type = NODE_EPSILON;
+  return node;
+}
+
+Node* anyNode() {
+  Node *node = malloc(sizeof(Node));
+  node->type = NODE_ANY;
   return node;
 }
 
@@ -402,6 +435,10 @@ Node* parsePrimary(char **s) {
       c = **s;
       (*s)++;
       return charNode(c);
+      
+    case '.':
+      (*s)++;
+      return anyNode();
 
     case '\0': case '|': case '?': case '+': case ')':
       return epsilonNode();
@@ -424,6 +461,10 @@ int main(int argc, char**argv) {
   int code_length;
   nodeToCode(node, &code, &code_length);
 
+  /*
+  printCodes(code, code_length);
+  */
+
   FILE *fp = fopen(argv[2], "r");
   if (fp == NULL) {
     err("no such file");
@@ -438,11 +479,11 @@ int main(int argc, char**argv) {
     int r = searchString(code, code_length, line, &buf, &buf_len);
     if (r) {
       printf("%s\n", buf);
+      fflush(stdout);
     }
   }
 
   fclose(fp);
-
 
   return 0;
 }

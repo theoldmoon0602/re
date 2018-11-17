@@ -413,25 +413,35 @@ Node* parsePrimary(char **s) {
   }
 }
 
-int main() {
-  char *s = "(ab|abc)+";
-  Node *node = parseRegex(&s);
+int main(int argc, char**argv) {
+  if (argc < 3) {
+    printf("%s: <pattern> <file>\n", argv[0]);
+    return 1;
+  }
+  Node *node = parseRegex(&argv[1]);
 
   Code *code;
   int code_length;
   nodeToCode(node, &code, &code_length);
 
-  printNode(node);printf("\n");
-  printCodes(code, code_length);
-
-  char* buf;
-  int buf_len;
-  int r = searchString(code, code_length, "ababcababcababcabababc", &buf, &buf_len);
-  if (r) {
-    printf("%d  %s\n", buf_len, buf);
-  } else {
-    printf("not matched");
+  FILE *fp = fopen(argv[2], "r");
+  if (fp == NULL) {
+    err("no such file");
   }
+  char *line = NULL;
+  size_t line_len;
+  ssize_t read;
+
+  while ((read = getline(&line, &line_len, fp)) != -1) {
+    char* buf;
+    int buf_len;
+    int r = searchString(code, code_length, line, &buf, &buf_len);
+    if (r) {
+      printf("%s\n", buf);
+    }
+  }
+
+  fclose(fp);
 
 
   return 0;

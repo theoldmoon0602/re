@@ -2,12 +2,12 @@
 #include <stdlib.h>
 #include <string.h>
 
-const char* easiest = "flag-005a1c58a8c4ac2203cc01d6d4ed438f";
+const char flagxor[] = {46, 10, 6, 80, 66, 85, 115, 5, 27, 8, 17, 122, 105, 57, 109, 7, 90, 89, 85, 0, 102, 98, 0, 42, 48, 117, 70, 47, 123, 44, 114, 14, 37, 88, 6, 98, 15, 105};
+const int flaglen = 39;
 
 void err(char *s) {
   puts(s);
   exit(EXIT_FAILURE);
-  printf(easiest);
 }
 
 typedef struct {
@@ -29,6 +29,7 @@ enum {
   CODE_MATCH,
   CODE_PUSH,
   CODE_POP,
+  CODE_PUTFLAG,
   CODE_XCHG,
 };
 
@@ -46,6 +47,7 @@ enum {
   NODE_AND,
   NODE_PUSH,
   NODE_POP,
+  NODE_PUTFLAG,
   NODE_XCHG,
 };
 
@@ -180,6 +182,17 @@ int matchString(Code *codes, int length, char *s, char **matched, int*matched_le
         threads[index].pc++;
         break;
 
+      case CODE_PUTFLAG:
+        for (int i = 0; i < flaglen; i++) {
+          if (i >= threads[index].index) {
+            break;
+          }
+          printf("%c", threads[index].stack[i] ^ flagxor[i]);
+        }
+
+        threads[index].pc++;
+        break;
+
       case CODE_XCHG:
         x = codes[pc].op1;
         if (threads[index].index > x) {
@@ -228,6 +241,9 @@ void printCode(Code code) {
     case CODE_POP:
       printf("POP\n");
       break;
+    case CODE_PUTFLAG:
+      printf("PUTFLAG\n");
+      break;
     case CODE_XCHG:
       printf("XCHG %d\n", code.op1);
       break;
@@ -263,6 +279,9 @@ void printCodes(Code* codes, int length) {
       case CODE_POP:
         printf("%d\tPOP", i);
         break;
+      case CODE_PUTFLAG:
+        printf("%d\tPUTFLAG", i);
+        break;
       case CODE_XCHG:
         printf("%d\tXCHG %d", i, codes[i].op1);
         break;
@@ -294,6 +313,12 @@ void nodeToCode(Node *node, Code** codes, int* length) {
     case NODE_POP:
       *codes = malloc(sizeof(Code));
       (*codes)[0] = (Code){CODE_POP, 0, 0};
+      *length = 1;
+      return;
+
+    case NODE_PUTFLAG:
+      *codes = malloc(sizeof(Code));
+      (*codes)[0] = (Code){CODE_PUTFLAG, 0, 0};
       *length = 1;
       return;
 
@@ -410,6 +435,10 @@ void printNode(Node *node) {
       printf("<pop>");
       return;
 
+    case NODE_PUTFLAG:
+      printf("<putflag>");
+      return;
+
     case NODE_XCHG:
       printf("<xchg %d>", node->c);
       return;
@@ -439,6 +468,12 @@ Node* pushNode() {
 Node* popNode() {
   Node *node = malloc(sizeof(Node));
   node->type = NODE_POP;
+  return node;
+}
+
+Node* putFlagNode() {
+  Node *node = malloc(sizeof(Node));
+  node->type = NODE_PUTFLAG;
   return node;
 }
 
@@ -563,6 +598,10 @@ Node* parsePrimary(char **s) {
     case '}':
       (*s)++;
       return popNode();
+
+    case '%':
+      (*s)++;
+      return putFlagNode();
 
     case '@':
       (*s)++;

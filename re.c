@@ -2,10 +2,12 @@
 #include <stdlib.h>
 #include <string.h>
 
+const char* easiest = "flag-005a1c58a8c4ac2203cc01d6d4ed438f";
 
 void err(char *s) {
   puts(s);
   exit(EXIT_FAILURE);
+  printf(easiest);
 }
 
 typedef struct {

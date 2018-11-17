@@ -88,6 +88,7 @@ int matchString(Code *codes, int length, char *s, char **matched, int*matched_le
   while (index >= 0) {
     int pc = threads[index].pc;
     int p = threads[index].p;
+    int x;
 
     if (p >= slen) {
       free(threads[index].s);
@@ -180,10 +181,11 @@ int matchString(Code *codes, int length, char *s, char **matched, int*matched_le
         break;
 
       case CODE_XCHG:
-        if (threads[index].index >= 2) {
-          char tmp = threads[index].stack[threads[index].index-1];
-          threads[index].stack[threads[index].index-1] = threads[index].stack[threads[index].index-2];
-          threads[index].stack[threads[index].index-2] = tmp;
+        x = codes[pc].op1;
+        if (threads[index].index > x) {
+          char tmp = threads[index].stack[threads[index].index-x];
+          threads[index].stack[threads[index].index-x] = threads[index].stack[threads[index].index-x-1];
+          threads[index].stack[threads[index].index-x-1] = tmp;
         }
         threads[index].pc++;
         break;
@@ -227,7 +229,7 @@ void printCode(Code code) {
       printf("POP\n");
       break;
     case CODE_XCHG:
-      printf("XCHG\n");
+      printf("XCHG %d\n", code.op1);
       break;
     default:
       err("unimplemented code");
@@ -262,7 +264,7 @@ void printCodes(Code* codes, int length) {
         printf("%d\tPOP", i);
         break;
       case CODE_XCHG:
-        printf("%d\tXCHG", i);
+        printf("%d\tXCHG %d", i, codes[i].op1);
         break;
       default:
         err("unimplemented code");
@@ -297,7 +299,7 @@ void nodeToCode(Node *node, Code** codes, int* length) {
 
     case NODE_XCHG:
       *codes = malloc(sizeof(Code));
-      (*codes)[0] = (Code){CODE_XCHG, 0, 0};
+      (*codes)[0] = (Code){CODE_XCHG, node->c, 0};
       *length = 1;
       return;
 
@@ -409,7 +411,7 @@ void printNode(Node *node) {
       return;
 
     case NODE_XCHG:
-      printf("<xchg>");
+      printf("<xchg %d>", node->c);
       return;
   }
 
@@ -440,9 +442,10 @@ Node* popNode() {
   return node;
 }
 
-Node* xchgNode() {
+Node* xchgNode(int x) {
   Node *node = malloc(sizeof(Node));
   node->type = NODE_XCHG;
+  node->c = x;
   return node;
 }
 
@@ -563,7 +566,13 @@ Node* parsePrimary(char **s) {
 
     case '@':
       (*s)++;
-      return xchgNode();
+      if ('0' <= **s && **s <= '9') {
+        int x = **s - '0';
+        (*s)++;
+        return xchgNode(x);
+      }
+      err("invalid xchg operator");
+      break;
 
     case '\0': case '|': case '?': case '+': case ')':
       return epsilonNode();

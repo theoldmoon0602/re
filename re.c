@@ -14,6 +14,8 @@ typedef struct {
   char* s;
   int len;
   int buf;
+  char stack[1000];
+  int index;
 } Thread;
 
 enum {
@@ -22,7 +24,10 @@ enum {
   CODE_ANY,
   CODE_JUMP,
   CODE_SPLIT,
-  CODE_MATCH
+  CODE_MATCH,
+  CODE_PUSH,
+  CODE_POP,
+  CODE_XCHG,
 };
 
 typedef struct {
@@ -37,6 +42,9 @@ enum {
   NODE_REP,
   NODE_OR,
   NODE_AND,
+  NODE_PUSH,
+  NODE_POP,
+  NODE_XCHG,
 };
 
 typedef struct Node {
@@ -68,7 +76,7 @@ int searchString(Code *codes, int length, char *s, char **matched, int *matched_
 int matchString(Code *codes, int length, char *s, char **matched, int*matched_len) {
   Thread threads[1000] = {};
   int index = 0;
-  threads[0] = (Thread){0, 0, malloc(sizeof(char)*10), 0, 10};
+  threads[0] = (Thread){0, 0, malloc(sizeof(char)*10), 0, 10, {}, 0};
 
   int slen = strlen(s);
 
@@ -135,10 +143,47 @@ int matchString(Code *codes, int length, char *s, char **matched, int*matched_le
 
         threads[index+1].s = malloc(sizeof(char) * threads[index].buf);
         strncpy(threads[index+1].s, threads[index].s, threads[index].len);
+
         threads[index+1].buf = threads[index].buf;
         threads[index+1].len = threads[index].len;
 
+        strncpy(threads[index+1].stack, threads[index].stack, threads[index].index);
+        threads[index+1].index = threads[index].index;
+
         index++;
+        break;
+
+      case CODE_PUSH:
+        if (threads[index].index == 1000) {
+          err("stack error");
+        }
+        threads[index].stack[threads[index].index] = s[p];
+        threads[index].index++;
+        threads[index].pc++;
+        threads[index].p++;
+        break;
+
+      case CODE_POP:
+        if (threads[index].index > 0) {
+          if (threads[index].len == threads[index].buf) {
+            threads[index].s = realloc(threads[index].s, threads[index].buf * 2);
+            threads[index].buf *= 2;
+          }
+          threads[index].s[threads[index].len] = threads[index].stack[threads[index].index-1];
+          threads[index].index--;
+          threads[index].len++;
+        }
+
+        threads[index].pc++;
+        break;
+
+      case CODE_XCHG:
+        if (threads[index].index >= 2) {
+          char tmp = threads[index].stack[threads[index].index-1];
+          threads[index].stack[threads[index].index-1] = threads[index].stack[threads[index].index-2];
+          threads[index].stack[threads[index].index-2] = tmp;
+        }
+        threads[index].pc++;
         break;
 
       default:
@@ -173,6 +218,15 @@ void printCode(Code code) {
     case CODE_MATCH:
       printf("MATCH\n");
       break;
+    case CODE_PUSH:
+      printf("PUSH\n");
+      break;
+    case CODE_POP:
+      printf("POP\n");
+      break;
+    case CODE_XCHG:
+      printf("XCHG\n");
+      break;
     default:
       err("unimplemented code");
   }
@@ -199,6 +253,15 @@ void printCodes(Code* codes, int length) {
       case CODE_MATCH:
         printf("%d\tMATCH", i);
         break;
+      case CODE_PUSH:
+        printf("%d\tPUSH", i);
+        break;
+      case CODE_POP:
+        printf("%d\tPOP", i);
+        break;
+      case CODE_XCHG:
+        printf("%d\tXCHG", i);
+        break;
       default:
         err("unimplemented code");
     }
@@ -215,6 +278,24 @@ void nodeToCode(Node *node, Code** codes, int* length) {
     case NODE_EPSILON:
       *codes = malloc(sizeof(Code));
       (*codes)[0] = (Code){CODE_NOP, 0, 0};
+      *length = 1;
+      return;
+
+    case NODE_PUSH:
+      *codes = malloc(sizeof(Code));
+      (*codes)[0] = (Code){CODE_PUSH, 0, 0};
+      *length = 1;
+      return;
+
+    case NODE_POP:
+      *codes = malloc(sizeof(Code));
+      (*codes)[0] = (Code){CODE_POP, 0, 0};
+      *length = 1;
+      return;
+
+    case NODE_XCHG:
+      *codes = malloc(sizeof(Code));
+      (*codes)[0] = (Code){CODE_XCHG, 0, 0};
       *length = 1;
       return;
 
@@ -316,6 +397,18 @@ void printNode(Node *node) {
       printNode(node->left);
       printNode(node->right);
       return;
+
+    case NODE_PUSH:
+      printf("<push>");
+      return;
+
+    case NODE_POP:
+      printf("<pop>");
+      return;
+
+    case NODE_XCHG:
+      printf("<xchg>");
+      return;
   }
 
   err("unimplemented case");
@@ -330,6 +423,24 @@ Node* epsilonNode() {
 Node* anyNode() {
   Node *node = malloc(sizeof(Node));
   node->type = NODE_ANY;
+  return node;
+}
+
+Node* pushNode() {
+  Node *node = malloc(sizeof(Node));
+  node->type = NODE_PUSH;
+  return node;
+}
+
+Node* popNode() {
+  Node *node = malloc(sizeof(Node));
+  node->type = NODE_POP;
+  return node;
+}
+
+Node* xchgNode() {
+  Node *node = malloc(sizeof(Node));
+  node->type = NODE_XCHG;
   return node;
 }
 
@@ -439,6 +550,18 @@ Node* parsePrimary(char **s) {
     case '.':
       (*s)++;
       return anyNode();
+
+    case '{':
+      (*s)++;
+      return pushNode();
+
+    case '}':
+      (*s)++;
+      return popNode();
+
+    case '@':
+      (*s)++;
+      return xchgNode();
 
     case '\0': case '|': case '?': case '+': case ')':
       return epsilonNode();

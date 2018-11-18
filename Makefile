@@ -1,2 +1,2 @@
-re: re.c
-	gcc re.c -o re -m32
+re:
+	gcc assets/re.c -o re -m32

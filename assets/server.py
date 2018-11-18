@@ -9,8 +9,12 @@ query = sys.stdin.readline().strip()
 if len(query) == 0:
     sys.exit()
 
-r = subprocess.run(["./re", query, "./re.txt"], capture_output=True, encoding=sys.getdefaultencoding(), timeout=1)
-out = r.stdout.split("\n")[0].strip()[:38]
+r = subprocess.check_output(["./re", query, "./re.txt"], timeout=1)
+try:
+    out = r.decode().split("\n")[0].strip()[:38]
+except UnicodeDecodeError:
+    out = "".join(list(map(chr, r)))[:38]
+
 
 sys.stdout.write("result is: " + out + "\n")
 sys.stdout.flush()

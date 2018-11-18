@@ -6,5 +6,3 @@ def tokens():
     o = subprocess.check_output(['docker', 'exec', container_id, 'sh', '/getandclean.sh']).strip()
     return set(o.split("\n"))
 
-print(tokens())
-

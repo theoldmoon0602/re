@@ -1,7 +1,0 @@
-{
-  "title": "RE:1",
-  "problem": "<p>This is reversing challenge. Analyze <a href='/static/challs/re.zip'>re.zip</a> and netcat to 192.168.205.1 5432.</p> <p>This challenge includes 3 attack flags. First one is in the re.txt.</p>",
-  "score": 100,
-  "category": "KoH",
-  "flag": "flag-455472b522fd0a1e27aaa91c4033db65"
-}

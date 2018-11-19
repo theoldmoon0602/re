@@ -195,10 +195,10 @@ int matchString(Code *codes, int length, char *s, char **matched, int*matched_le
 
       case CODE_XCHG:
         x = codes[pc].op1;
-        if (threads[index].index > x) {
+        if (threads[index].index >= x) {
           char tmp = threads[index].stack[threads[index].index-x];
-          threads[index].stack[threads[index].index-x] = threads[index].stack[threads[index].index-x-1];
-          threads[index].stack[threads[index].index-x-1] = tmp;
+          threads[index].stack[threads[index].index-x] = threads[index].stack[threads[index].index-1];
+          threads[index].stack[threads[index].index-1] = tmp;
         }
         threads[index].pc++;
         break;
@@ -608,7 +608,11 @@ Node* parsePrimary(char **s) {
       if ('0' <= **s && **s <= '9') {
         int x = **s - '0';
         (*s)++;
-        return xchgNode(x);
+        if ('0' <= **s && **s <= '9') {
+          x = x * 10 + (**s - '0');
+          (*s)++;
+          return xchgNode(x);
+        }
       }
       err("invalid xchg operator");
       break;
